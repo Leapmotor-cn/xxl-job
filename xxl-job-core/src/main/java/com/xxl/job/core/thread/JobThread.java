@@ -1,6 +1,6 @@
 package com.xxl.job.core.thread;
 
-import com.xxl.job.core.openapi.model.HandleCallbackRequest;
+import com.xxl.job.core.openapi.model.CallbackRequest;
 import com.xxl.job.core.openapi.model.TriggerRequest;
 import com.xxl.job.core.context.XxlJobContext;
 import com.xxl.job.core.context.XxlJobHelper;
@@ -115,6 +115,7 @@ public class JobThread extends Thread{
 					XxlJobContext xxlJobContext = new XxlJobContext(
 							triggerParam.getJobId(),
 							triggerParam.getExecutorParams(),
+                            triggerParam.getLogId(),
                             triggerParam.getLogDateTime(),
                             logFileName,
 							triggerParam.getBroadcastIndex(),
@@ -178,7 +179,7 @@ public class JobThread extends Thread{
 
 				} else {
 					if (idleTimes > 30) {
-						if(triggerQueue.size() == 0) {	// avoid concurrent trigger causes jobId-lost
+						if(triggerQueue.isEmpty()) {	// avoid concurrent trigger causes jobId-lost
 							XxlJobExecutor.removeJobThread(jobId, "excutor idle times over limit.");
 						}
 					}
@@ -201,7 +202,7 @@ public class JobThread extends Thread{
                     // callback handler info
                     if (!toStop) {
                         // common
-                        TriggerCallbackThread.pushCallBack(new HandleCallbackRequest(
+                        TriggerCallbackThread.pushCallBack(new CallbackRequest(
                         		triggerParam.getLogId(),
 								triggerParam.getLogDateTime(),
 								XxlJobContext.getXxlJobContext().getHandleCode(),
@@ -209,7 +210,7 @@ public class JobThread extends Thread{
 						);
                     } else {
                         // is killed
-                        TriggerCallbackThread.pushCallBack(new HandleCallbackRequest(
+                        TriggerCallbackThread.pushCallBack(new CallbackRequest(
                         		triggerParam.getLogId(),
 								triggerParam.getLogDateTime(),
 								XxlJobContext.HANDLE_CODE_FAIL,
@@ -221,11 +222,11 @@ public class JobThread extends Thread{
         }
 
 		// callback trigger request in queue
-		while(triggerQueue !=null && triggerQueue.size()>0){
+		while(triggerQueue !=null && !triggerQueue.isEmpty()){
 			TriggerRequest triggerParam = triggerQueue.poll();
 			if (triggerParam!=null) {
 				// is killed
-				TriggerCallbackThread.pushCallBack(new HandleCallbackRequest(
+				TriggerCallbackThread.pushCallBack(new CallbackRequest(
 						triggerParam.getLogId(),
 						triggerParam.getLogDateTime(),
 						XxlJobContext.HANDLE_CODE_FAIL,

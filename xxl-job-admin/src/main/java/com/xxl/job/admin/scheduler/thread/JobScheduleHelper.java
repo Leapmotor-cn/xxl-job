@@ -1,10 +1,11 @@
 package com.xxl.job.admin.scheduler.thread;
 
+import com.xxl.job.admin.constant.TriggerStatus;
 import com.xxl.job.admin.model.XxlJobInfo;
 import com.xxl.job.admin.scheduler.config.XxlJobAdminBootstrap;
 import com.xxl.job.admin.scheduler.misfire.MisfireStrategyEnum;
-import com.xxl.job.admin.scheduler.type.ScheduleTypeEnum;
 import com.xxl.job.admin.scheduler.trigger.TriggerTypeEnum;
+import com.xxl.job.admin.scheduler.type.ScheduleTypeEnum;
 import com.xxl.tool.core.CollectionTool;
 import com.xxl.tool.core.MapTool;
 import org.slf4j.Logger;
@@ -62,8 +63,9 @@ public class JobScheduleHelper {
                     boolean preReadSuc = true;
 
                     // transaction start
-                    TransactionStatus transactionStatus = XxlJobAdminBootstrap.getInstance().getTransactionManager().getTransaction(new DefaultTransactionDefinition());
+                    TransactionStatus transactionStatus = null;
                     try {
+                        transactionStatus = XxlJobAdminBootstrap.getInstance().getTransactionManager().getTransaction(new DefaultTransactionDefinition());
                         // 1、job lock
                         String lockedRecord = XxlJobAdminBootstrap.getInstance().getXxlJobLockMapper().scheduleLock();
                         long nowTime = System.currentTimeMillis();
@@ -97,7 +99,7 @@ public class JobScheduleHelper {
                                     refreshNextTriggerTime(jobInfo, new Date());
 
                                     // next-trigger-time in 5s, pre-read again
-                                    if (jobInfo.getTriggerStatus()==1 && nowTime + PRE_READ_MS > jobInfo.getTriggerNextTime()) {
+                                    if (jobInfo.getTriggerStatus()== TriggerStatus.RUNNING.getValue() && nowTime + PRE_READ_MS > jobInfo.getTriggerNextTime()) {
 
                                         // 1、make ring second
                                         int ringSecond = (int)((jobInfo.getTriggerNextTime()/1000)%60);
@@ -143,7 +145,13 @@ public class JobScheduleHelper {
                         }
                     } finally {
                         // transaction commit
-                        XxlJobAdminBootstrap.getInstance().getTransactionManager().commit(transactionStatus);   // avlid schedule repeat
+                        try {
+                            if (transactionStatus != null) {
+                                XxlJobAdminBootstrap.getInstance().getTransactionManager().commit(transactionStatus);   // avlid schedule repeat
+                            }
+                        } catch (Throwable e) {
+                            logger.error(">>>>>>>>>>> xxl-job, JobScheduleHelper#scheduleThread transaction commit error:{}", e.getMessage(), e);
+                        }
                     }
                     // transaction end
                     long cost = System.currentTimeMillis()-start;
@@ -252,7 +260,7 @@ public class JobScheduleHelper {
                 jobInfo.setTriggerNextTime(nextTriggerTime.getTime());
             } else {
                 // generate fail, stop job
-                jobInfo.setTriggerStatus(0);
+                jobInfo.setTriggerStatus(TriggerStatus.STOPPED.getValue());
                 jobInfo.setTriggerLastTime(0);
                 jobInfo.setTriggerNextTime(0);
                 logger.error(">>>>>>>>>>> xxl-job, refreshNextValidTime fail for job: jobId={}, scheduleType={}, scheduleConf={}",
@@ -260,7 +268,7 @@ public class JobScheduleHelper {
             }
         } catch (Throwable e) {
             // generate error, stop job
-            jobInfo.setTriggerStatus(0);
+            jobInfo.setTriggerStatus(TriggerStatus.STOPPED.getValue());
             jobInfo.setTriggerLastTime(0);
             jobInfo.setTriggerNextTime(0);
 

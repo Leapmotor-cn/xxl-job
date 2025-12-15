@@ -33,6 +33,7 @@ public class XxlJobExecutor  {
     private String adminAddresses;
     private String accessToken;
     private int timeout;
+    private Boolean enabled;
     private String appname;
     private String address;
     private String ip;
@@ -48,6 +49,9 @@ public class XxlJobExecutor  {
     }
     public void setTimeout(int timeout) {
         this.timeout = timeout;
+    }
+    public void setEnabled(Boolean enabled) {
+        this.enabled = enabled;
     }
     public void setAppname(String appname) {
         this.appname = appname;
@@ -71,6 +75,12 @@ public class XxlJobExecutor  {
 
     // ---------------------- start + stop ----------------------
     public void start() throws Exception {
+
+        // valid enabled
+        if (enabled!=null && !enabled) {
+            logger.info(">>>>>>>>>>> xxl-job executor start fail, enabled:{}", enabled);
+            return;
+        }
 
         // init logpath
         XxlJobFileAppender.initLogPath(logPath);
@@ -123,31 +133,36 @@ public class XxlJobExecutor  {
     // ---------------------- admin-client (rpc invoker) ----------------------
     private static List<AdminBiz> adminBizList;
     private void initAdminBizList(String adminAddresses, String accessToken, int timeout) throws Exception {
-        if (StringTool.isNotBlank(adminAddresses)) {
-            for (String address: adminAddresses.trim().split(",")) {
-                if (StringTool.isNotBlank(address)) {
+        // valid
+        if (StringTool.isBlank(adminAddresses)) {
+            return;
+        }
 
-                    // valid
-                    String finalAddress = address.trim();
-                    finalAddress = finalAddress.endsWith("/") ? (finalAddress + "api") : (finalAddress + "/api");
-                    if (!(this.timeout >=1 && this.timeout <= 10)) {
-                        this.timeout = 3;
-                    }
-
-                    // build
-                    AdminBiz adminBiz = HttpTool.createClient()
-                            .url(finalAddress)
-                            .timeout(timeout * 1000)
-                            .header(Const.XXL_JOB_ACCESS_TOKEN, accessToken)
-                            .proxy(AdminBiz.class);
-
-                    // registry
-                    if (adminBizList == null) {
-                        adminBizList = new ArrayList<AdminBiz>();
-                    }
-                    adminBizList.add(adminBiz);
-                }
+        // build adminBizList
+        for (String address: adminAddresses.trim().split(",")) {
+            if (StringTool.isBlank(address)) {
+                continue;
             }
+
+            // parse param
+            String finalAddress = address.trim();
+            finalAddress = finalAddress.endsWith("/") ? (finalAddress + "api") : (finalAddress + "/api");
+            int finalTimeout = (timeout >=1 && timeout <= 10)
+                    ?timeout
+                    :3;
+
+            // build
+            AdminBiz adminBiz = HttpTool.createClient()
+                    .url(finalAddress)
+                    .timeout(finalTimeout * 1000)
+                    .header(Const.XXL_JOB_ACCESS_TOKEN, accessToken)
+                    .proxy(AdminBiz.class);
+
+            // registry
+            if (adminBizList == null) {
+                adminBizList = new ArrayList<AdminBiz>();
+            }
+            adminBizList.add(adminBiz);
         }
     }
 
